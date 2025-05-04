@@ -10,20 +10,21 @@ The suits are D = diamonds, C = clubs, H = hearts, S = spades
 """
 
 RANK_TO_VALUE = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14}
-VALUE_TO_RANK = {2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: 'T', 11: 'J', 12: 'Q', 13: 'K', 14: 'A'}
+VALUE_TO_RANK = {1: 'A', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: 'T', 11: 'J', 12: 'Q', 13: 'K', 14: 'A'}
 SUITS = ('D', 'C', 'H', 'S')
 
 """
 Takes in hole and community cards, and returns the hand ranking and kickers
 End term of the kickers is 
 """
-def evaluate_hand(cards: set[str]):
+def evaluate_hand(cards: set[str]) -> tuple[int, list[int]]:
     # Dictionary to hold the counts of each value of card
     value_counter = {}
     
     # Dictionary to hold the counts of each suit of card
     suit_counter = {}
     
+    # Counts cards
     for card in cards:
         if RANK_TO_VALUE[card[0]] in value_counter.keys():
             value_counter[RANK_TO_VALUE[card[0]]] += 1
@@ -35,75 +36,20 @@ def evaluate_hand(cards: set[str]):
         else:
             suit_counter[card[1]] = 1
 
-    return value_counter, suit_counter, cards
-    # sorted_values = sorted(value_counter.keys())
+    # Checks royal flush
+    rf = royal_flush(value_counter, suit_counter, cards)
+    if not rf is None:
+        return rf
 
-    
-    # # Flush, straight, and straight flush
-    # straight = True
-    # flush = True
-    # if len(suit_counter.keys()) > 1:
-    #     flush = False
-    # if len(sorted_values) == 5:
-    #     # Royal flush
-    #     if(sorted_values[0] == 10):
-    #         return (1,[])
-    #     for i in range(4):
-    #         if(sorted_values[i + 1] != sorted_values[i]):
-    #             straight = False
-    #             break
-    #     # Catches straight with A, 2, 3, 4, 5
-    #     if(sorted_values == [2, 3, 4, 5, 14]):
-    #         straight = True
-    # else:
-    #     straight = False
-    
-    # if(straight and flush):
-    #     return (2, sorted_values)
-    # if(flush):
-    #     return (5, sorted_values)
-    # if(straight):
-    #     return (6, sorted_values)
+    # Checks four of a kind, three of a kind, full house, two pairs, pair, and high card
+    dup = duplicates(value_counter, suit_counter, cards)
 
-    # # Four of a kind and full house
-    # if(len(sorted_values) == 2):
-    #     # Four of a kind, with 4 of the lower card
-    #     if(value_counter[sorted_values[1]] == 1):
-    #         return(3, sorted_values.reverse())
-    #     # Four of a kind, with 4 of the higher card
-    #     elif(value_counter[sorted_values[1]] == 4):
-    #         return(3, sorted_values)
-    #     # Full house, with 3 of the lower card
-    #     elif(value_counter[sorted_values[1]] == 2):
-    #         return (4, sorted_values.reverse())
-    #     # Full house, with 3 of the higher card
-    #     else:
-    #         return (4, sorted_values)
-    
-    # # 3 of a kind, two pairs, pair
-    # if(len(sorted_values) < 5):
-    #     pair_count = 0
-    #     pair_values = []
-    #     for value in sorted_values:
-    #         # Three of a kind
-    #         if value_counter[value] == 3:
-    #             v = sorted_values.remove(value)
-    #             return (7, (value, sorted_values + v))
-    #         if value_counter[value] == 2:
-    #             pair_count += 1
-    #             pair_values.append(value)
-    #     # Two pairs
-    #     if pair_count == 2:
-    #         sorted_values.remove(pair_values[0])
-    #         sorted_values.remove(pair_values[1])
-    #         return(8, sorted_values + sorted(pair_values))
-    #     # Pair
-    #     if pair_count == 1:
-    #         sorted_values.remove(pair_values[0])
-    #         return(9, sorted_values + pair_values)
-    
-    # # High card
-    # return(10, sorted_values)
+    # Checks straight, flush, and straight flush    
+    sf = straight_flush(value_counter, suit_counter, cards)
+    if sf is None or dup[0] == 3:
+        return dup
+    else:
+        return sf
 
 """
 Takes in two evaluated hands.
@@ -148,7 +94,7 @@ def royal_flush(values: dict, suits: dict, cards: set[str]) -> Optional[tuple[in
     # Checks if there is a suit with 5 different cards
     royal_suit = 0
     for suit in suits.keys():
-        if suits[suit] == 5:
+        if suits[suit] >= 5:
             royal_suit = suit
     
     # No suits had 5 cards
@@ -162,9 +108,10 @@ def royal_flush(values: dict, suits: dict, cards: set[str]) -> Optional[tuple[in
         if len(royal_hand.intersection(cards)) == 5:
             return (1, [])
         else:
-            return False
+            return None
 
 def straight_flush(values: dict, suits: dict, cards: set) -> Optional[tuple[int, list[int]]]:
+    straight = False
 
     # Sorts the values
     sorted_values = sorted(values.keys())
@@ -174,7 +121,6 @@ def straight_flush(values: dict, suits: dict, cards: set) -> Optional[tuple[int,
     straight_cards = set()
     
     for i in range(len(sorted_values) - 1):
-        print(in_a_row)
         if(sorted_values[i + 1] == sorted_values[i] + 1):
             in_a_row += 1
             straight_cards.add(sorted_values[i])
@@ -183,25 +129,39 @@ def straight_flush(values: dict, suits: dict, cards: set) -> Optional[tuple[int,
             in_a_row = 1
             straight_cards = set()
             
-
-    # Not a straight
     if(in_a_row < 5):
         # If ace
         if sorted_values[-1] == 14:
-            #TODO: retry with ace as 1
-
-
-
+            in_a_row = 1
+            # Retries with ace as 1
+            sorted_values = [1] + sorted_values[:-1]
+            for i in range(len(sorted_values) - 1):
+                if(sorted_values[i + 1] == sorted_values[i] + 1):
+                    in_a_row += 1
+                    straight_cards.add(sorted_values[i])
+                    straight_cards.add(sorted_values[i+1])
+                elif(in_a_row < 5):
+                    in_a_row = 1
+                    straight_cards = set()
+    
+    # Confirms a straight is possible
+    if(in_a_row >= 5):
+        straight = True
 
     # Checks flush
     flush_suit = 0
     for suit in suits.keys():
         if suits[suit] == 5:
+            # Flush is possible
             flush_suit = suit
             break
     # No flush
     if flush_suit == 0:
-        return None
+        if straight:
+            # Just a straight
+            return (6, list(straight_cards)[-5:])
+        else:
+            return None
     else:
         straight_flush_cards = set()
         for card in straight_cards:
@@ -210,20 +170,67 @@ def straight_flush(values: dict, suits: dict, cards: set) -> Optional[tuple[int,
         hand = (straight_flush_cards.intersection(cards))
         if len(hand) >= 5:
             h = sorted([RANK_TO_VALUE[card[0]] for card in hand])
-            return (2, h[-5:])
+            # Checks to make same suit
+            in_a_row = 1
+            for i in range(len(h) - 1):
+                if(h[i + 1] == h[i] + 1):
+                    in_a_row += 1
+                else:
+                    in_a_row = 1
+            # Straight flush
+            if(in_a_row == 5):
+                return (2, h[-5:])
+            
+            else:
+                # Just a flush
+                return (5, sorted([RANK_TO_VALUE[card[0]] for card in cards if card[1] == suit]))
 
-    # No flush
-    return None
+def duplicates(values: dict, suits: dict, cards: set) -> Optional[tuple[int, list[int]]]:
     
+    sorted_values = sorted(values.keys())
+    
+    three_of_a_kind = False
+    three_value = []
+    pair_count = 0
+    pair_values = []
 
-rf = set()
-rf.add("3H")
-rf.add("3D")
-rf.add("6H")
-rf.add("5H")
-rf.add("4H")
-rf.add("7H")
-rf.add("AS")
+    for value in values.keys():
+        # Four of a kind
+        if(values[value] == 4):
+            sorted_values.remove(value)
+            return (3, sorted_values[-1:] + [value])
+        # Three of a kind
+        if(values[value] == 3):
+            three_value.append(value)
+            three_of_a_kind = True
+        # Pairs
+        if(values[value] == 2):
+            pair_count += 1
+            pair_values.append(value)
+    
+    if(three_of_a_kind):
+        # Full house
+        if( pair_count > 0):
+            return (4, [max(pair_values)] + three_value)
+        else:
+            # Just three of a kind
+            sorted_values.remove(three_value[0])
+            return (7, sorted_values[-2:] + three_value)
 
-v, s, c = evaluate_hand(rf)
-print(straight_flush(v, s, c))
+    # Two pairs
+    if pair_count >= 2:
+        pair_values.sort()
+        # Takes the highest two pairs
+        pair_values = pair_values[-2:]
+        sorted_values.remove(pair_values[0])
+        sorted_values.remove(pair_values[1])
+        return (8, sorted_values[-1:] + pair_values)
+    
+    # Pair
+    if pair_count == 1:
+        sorted_values.remove(pair_values[0])
+        return(9, sorted_values[-3:] + pair_values)
+    
+    # High card
+    else:
+        return(10, sorted_values[-5:])
