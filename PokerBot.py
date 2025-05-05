@@ -116,15 +116,24 @@ def choose_winner(p0: tuple[int, list[int]], p1: tuple[int, list[int]]) -> int:
     else:
         return p0[0] < p1[0]
     
-def generate_hand() -> tuple[set[str], Deck]:
+def generate_hand(turn: str) -> tuple[set[str], set[str], Deck]:
     # In pre-flop, both player receives hand
     hand = set()
+    community_cards = set()
     deck = Deck()
 
     for i in range(2):
         hand.add(deck.draw())
+    
+    if(turn == "PT"):
+        for i in range(3):
+            community_cards.add(deck.draw())
+
+    elif(turn == "PR"):
+        for i in range(1):
+            community_cards.add(deck.draw())
         
-    return hand, deck
+    return hand, community_cards, deck
     
     
 def royal_flush(values: dict, suits: dict, cards: set[str]) -> Optional[tuple[int, list[int]]]:
@@ -278,7 +287,7 @@ def duplicates(values: dict, suits: dict, cards: set) -> Optional[tuple[int, lis
 
 def UCB1(node: GameState, parent_N: int) -> float:
     try:
-        return node.t / node.n + 2 ** 0.5 * (math.log(parent_N) / node.n) ** 0.5
+        return node.t / node.n + 1.414 * (math.log(parent_N) / node.n) ** 0.5
     except(ArithmeticError):
         return float('inf')
 
@@ -295,8 +304,9 @@ def rollout(node: GameState, hand: set[str], community_cards: set[str], deck: De
     
     # Randomly generate opponent hand
     opp_hand = set()
-    opp_hand.add(deck.temp_draw(1)[0])
-    opp_hand.add(deck.temp_draw(1)[0])
+    new_cards = deck.temp_draw(2)
+    opp_hand.add(new_cards[0])
+    opp_hand.add(new_cards[1])
 
     # Each player can use community cards and their hole cards
     h0 = hand.union(community_cards)
@@ -317,8 +327,11 @@ def MCTS(root: GameState, hand: set[str], start_community_cards: set[str], start
             root.n = 0
             root.t = 0
             current = root
-            community_cards = start_community_cards.copy()
+            community_cards = set(start_community_cards)
             drawn_cards = []
+            flop = False
+            turn = False
+            river = False
             while True and time.time() - start_time < 10:
                 # Checks if current is a leaf node
                 if(current.left is None and current.right is None):
@@ -334,7 +347,7 @@ def MCTS(root: GameState, hand: set[str], start_community_cards: set[str], start
                             current = current.left  # Arbitrarily selects exploration state
                     
                     # Rollout
-                    value = rollout(current, hand, community_cards.copy(), deck)
+                    value = rollout(current, hand, set(community_cards), start_deck)
 
                     # Backpropagates
                     while not current is None:
@@ -352,39 +365,52 @@ def MCTS(root: GameState, hand: set[str], start_community_cards: set[str], start
                         current = current.left
                     else:
                         current = current.right
-                    if(current.turn == "PT" and current.stay):
+                    if(current.turn == "PT" and not flop):
+                        flop = True
                         for i in range(3):
                             # Add three random cards to community cards
-                            card = deck.draw()
+                            card = start_deck.draw()
                             drawn_cards.append(card)
                             community_cards.add(card)
-                    elif(current.stay):
-                        # Add one card for PR and R
-                        card = deck.draw()
+                        
+                    elif(current.turn == "PR" and not turn):
+                        # Add one card for PR
+                        card = start_deck.draw()
                         drawn_cards.append(card)
                         community_cards.add(card)  
+                        turn = True
+                        
+                    elif(current.turn == "R" and not river):
+                        # Add one card for PR
+                        card = start_deck.draw()
+                        drawn_cards.append(card)
+                        community_cards.add(card)  
+                        river = True
+                        
 
-                total_n += root.n
-                total_t += root.t
-                deck.deck += drawn_cards
+            total_n += root.n
+            total_t += root.t
+            start_deck.deck += drawn_cards
+            
 
         # Returns win probability
         return (total_t / total_n * 100)
 
 
-        
-
-
-
-
-
+    
 if __name__ == "__main__":
-
     for i in range(10):
-        # Starts by creating first game state (pre-flop)
-        bot_hand, deck = generate_hand()
+        bot_hand, community_cards, deck = generate_hand("PF")
         init_state = GameState("PF", True, None)
-        print(bot_hand)
-        print(f'Iteration {i}: {MCTS(init_state, bot_hand, set(), deck)}%')
-
+        print(f"Hand: {bot_hand} Turn: {init_state.turn} Win: {MCTS(init_state, bot_hand, community_cards, deck)}")
+    print()
+    for i in range(10):
+        bot_hand, community_cards, deck = generate_hand("PT")
+        init_state = GameState("PT", True, None)
+        print(f"Hand: {bot_hand} Turn: {init_state.turn} Win: {MCTS(init_state, bot_hand, community_cards, deck)}")
+    print()
+    for i in range(10):
+        bot_hand, community_cards, deck = generate_hand("PR")
+        init_state = GameState("PR", True, None)
+        print(f"Hand: {bot_hand} Turn: {init_state.turn} Win: {MCTS(init_state, bot_hand, community_cards, deck)}")
     
