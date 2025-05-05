@@ -1,7 +1,36 @@
 import random
+import time
+import math
 from typing import Optional
 
+class GameState:
+    def __init__(self, turn: str, stay: Optional[bool], parent: Optional["GameState"]):
+        self.turn = turn    # Pre-flop (PF), pre-turn (PT), pre-river (PR), river (R)
+        self.stay = stay    # Boolean representing if this is a stay state (true) or a fold state (false). N/A to root node
+        self.left: Optional["GameState"] = None    # Child state 1
+        self.right: Optional["GameState"] = None   # Child state 1
+        self.n = 0  # Number of times visited
+        self.t = 0  # Total value of node
+        self.parent = parent
 
+class Deck:
+    def __init__(self):
+        self.deck = ["2D", "3D", "4D", "5D", "6D", "7D", "8D", "9D", "TD", "JD", "QD", "KD", "AD",
+                     "2C", "3C", "4C", "5C", "6C", "7C", "8C", "9C", "TC", "JC", "QC", "KC", "AC",
+                     "2H", "3H", "4H", "5H", "6H", "7H", "8H", "9H", "TH", "JH", "QH", "KH", "AH",
+                     "2S", "3S", "4S", "5S", "6S", "7S", "8S", "9S", "TS", "JS", "QS", "KS", "AS"]
+    # Draws cards
+    def draw(self) -> str:
+        card = random.choice(self.deck)
+        self.deck.remove(card)
+        return card
+    # Draws cards without removing them
+    def temp_draw(self, num):
+        cards = []
+        for i in range(num):
+            cards.append(self.draw())
+        self.deck += cards
+        return cards
 
 """
 Card representations "{value}{suit}"
@@ -12,6 +41,9 @@ The suits are D = diamonds, C = clubs, H = hearts, S = spades
 RANK_TO_VALUE = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14}
 VALUE_TO_RANK = {1: 'A', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: 'T', 11: 'J', 12: 'Q', 13: 'K', 14: 'A'}
 SUITS = ('D', 'C', 'H', 'S')
+
+NUM_CHOICES = {"PF" : 3, "PT" : 2, "PR" : 1, "R" : 0}
+NEXT_TURN = {"PF" : "PT", "PT" : "PR", "PR" : "R", "R" : None}
 
 """
 Takes in hole and community cards, and returns the hand ranking and kickers
@@ -53,16 +85,16 @@ def evaluate_hand(cards: set[str]) -> tuple[int, list[int]]:
 
 """
 Takes in two evaluated hands.
-Returns 0 if p0 wins and 1 if p1 wins
+Returns 1 if bot wins and 0 if bot loses
 
 By convention, p0 will be the bot and p1 will be the opponent.
 I define a tie as not a win, and count it as a loss for the bot
 """
-def choose_winner(p0: tuple[int, list[int]], p1: tuple[int, list[int]]) -> bool:
+def choose_winner(p0: tuple[int, list[int]], p1: tuple[int, list[int]]) -> int:
     # If hands have the same rank
     if(p0[0] == p1[0]):
         # Compare kickers
-        while len(p0[0]) > 0:
+        while len(p0[1]) > 0 and len(p1[1]) > 0:
             kicker0 = p0[1].pop()
             kicker1 = p1[1].pop()
             # Goes to the next kicker if they are the same
@@ -70,22 +102,31 @@ def choose_winner(p0: tuple[int, list[int]], p1: tuple[int, list[int]]) -> bool:
                 continue
             else:
                 # Otherwise compares kickers to determine winner
-                return kicker1 > kicker0
-        # Tie is a loss for the bot
-        return True
+                return kicker1 < kicker0
+        
+        # Bot had higher duplicate kicker
+        if len(p0[1]) == 0:
+            return 1
+        # Ties, or when the opponent has higher duplicate kicker
+        else:
+            return 0
+            
     # Whoever has highest ranking hand wins
     # Note, 1 is the highest rank and 10 is the lowest.
     else:
-        return p0[0] > p1[0]
+        return p0[0] < p1[0]
     
-def generate_hand() -> set[str]:
+def generate_hand() -> tuple[set[str], Deck]:
+    # In pre-flop, both player receives hand
     hand = set()
+    deck = Deck()
 
-    while(len(hand) < 5):
-        hand.add(str(random.choice(list(RANK_TO_VALUE.keys()))) + str(random.choice(SUITS)))
-
-    return hand
-
+    for i in range(2):
+        hand.add(deck.draw())
+        
+    return hand, deck
+    
+    
 def royal_flush(values: dict, suits: dict, cards: set[str]) -> Optional[tuple[int, list[int]]]:
     # Royal flush must have 5 different cards values
     if len(values.keys()) < 5:
@@ -234,3 +275,116 @@ def duplicates(values: dict, suits: dict, cards: set) -> Optional[tuple[int, lis
     # High card
     else:
         return(10, sorted_values[-5:])
+
+def UCB1(node: GameState, parent_N: int) -> float:
+    try:
+        return node.t / node.n + 2 ** 0.5 * (math.log(parent_N) / node.n) ** 0.5
+    except(ArithmeticError):
+        return float('inf')
+
+def rollout(node: GameState, hand: set[str], community_cards: set[str], deck: Deck) -> int:
+    for i in range(NUM_CHOICES[node.turn]):
+        # Randomly chooses to stay or fold through each stage
+        # 0 = stay
+        if(random.randint(0,1)):
+            return 0
+    # If reaches this point, it chose to stay until showdown
+    if(len(community_cards) < 5):
+        for card in deck.temp_draw(5  - len(community_cards)):
+            community_cards.add(card)
+    
+    # Randomly generate opponent hand
+    opp_hand = set()
+    opp_hand.add(deck.temp_draw(1)[0])
+    opp_hand.add(deck.temp_draw(1)[0])
+
+    # Each player can use community cards and their hole cards
+    h0 = hand.union(community_cards)
+    h1 = opp_hand.union(community_cards)
+
+    # Determine who wins the 
+    return choose_winner(evaluate_hand(h0), evaluate_hand(h1))
+
+def MCTS(root: GameState, hand: set[str], start_community_cards: set[str], start_deck: Deck):
+        start_time = time.time()
+        total_n = 0
+        total_t = 0
+
+        while time.time() - start_time < 10:
+            # Reset root node and cards for another simulation
+            root.left = None
+            root.right = None
+            root.n = 0
+            root.t = 0
+            current = root
+            community_cards = start_community_cards.copy()
+            drawn_cards = []
+            while True and time.time() - start_time < 10:
+                # Checks if current is a leaf node
+                if(current.left is None and current.right is None):
+                    # If node already explored, expand
+                    if(current.n != 0):
+                        # If river state is being expanded, tree expansion has concluded
+                        if(NEXT_TURN[current.turn] is None):
+                            break
+                        # Don't expand fold states
+                        elif(current.stay):
+                            current.left = GameState(NEXT_TURN[current.turn], True, current)    # Stay 
+                            current.right = GameState(NEXT_TURN[current.turn], False, current)  # Fold
+                            current = current.left  # Arbitrarily selects exploration state
+                    
+                    # Rollout
+                    value = rollout(current, hand, community_cards.copy(), deck)
+
+                    # Backpropagates
+                    while not current is None:
+                        current.n += 1
+                        current.t += value
+                        current = current.parent
+
+                    # Sets current back to root and repeats
+                    current = root
+                    
+                # Not a leaf node, use UCB1
+                else:
+                    # Chooses higher UCB1, or leftmost in case of a tie
+                    if(UCB1(current.left, current.n) >= UCB1(current.right, current.n)):
+                        current = current.left
+                    else:
+                        current = current.right
+                    if(current.turn == "PT" and current.stay):
+                        for i in range(3):
+                            # Add three random cards to community cards
+                            card = deck.draw()
+                            drawn_cards.append(card)
+                            community_cards.add(card)
+                    elif(current.stay):
+                        # Add one card for PR and R
+                        card = deck.draw()
+                        drawn_cards.append(card)
+                        community_cards.add(card)  
+
+                total_n += root.n
+                total_t += root.t
+                deck.deck += drawn_cards
+
+        # Returns win probability
+        return (total_t / total_n * 100)
+
+
+        
+
+
+
+
+
+if __name__ == "__main__":
+
+    for i in range(10):
+        # Starts by creating first game state (pre-flop)
+        bot_hand, deck = generate_hand()
+        init_state = GameState("PF", True, None)
+        print(bot_hand)
+        print(f'Iteration {i}: {MCTS(init_state, bot_hand, set(), deck)}%')
+
+    
