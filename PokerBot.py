@@ -3,35 +3,6 @@ import time
 import math
 from typing import Optional
 
-class GameState:
-    def __init__(self, turn: str, stay: Optional[bool], parent: Optional["GameState"]):
-        self.turn = turn    # Pre-flop (PF), pre-turn (PT), pre-river (PR), river (R)
-        self.stay = stay    # Boolean representing if this is a stay state (true) or a fold state (false). N/A to root node
-        self.left: Optional["GameState"] = None    # Child state 1
-        self.right: Optional["GameState"] = None   # Child state 1
-        self.n = 0  # Number of times visited
-        self.t = 0  # Total value of node
-        self.parent = parent
-
-class Deck:
-    def __init__(self):
-        self.deck = ["2D", "3D", "4D", "5D", "6D", "7D", "8D", "9D", "TD", "JD", "QD", "KD", "AD",
-                     "2C", "3C", "4C", "5C", "6C", "7C", "8C", "9C", "TC", "JC", "QC", "KC", "AC",
-                     "2H", "3H", "4H", "5H", "6H", "7H", "8H", "9H", "TH", "JH", "QH", "KH", "AH",
-                     "2S", "3S", "4S", "5S", "6S", "7S", "8S", "9S", "TS", "JS", "QS", "KS", "AS"]
-    # Draws cards
-    def draw(self) -> str:
-        card = random.choice(self.deck)
-        self.deck.remove(card)
-        return card
-    # Draws cards without removing them
-    def temp_draw(self, num):
-        cards = []
-        for i in range(num):
-            cards.append(self.draw())
-        self.deck += cards
-        return cards
-
 """
 Card representations "{value}{suit}"
 The values are from 2-T where Jack = J, Queen = Q, King = K, Ace = A
@@ -44,6 +15,83 @@ SUITS = ('D', 'C', 'H', 'S')
 
 NUM_CHOICES = {"PF" : 3, "PT" : 2, "PR" : 1, "R" : 0}
 NEXT_TURN = {"PF" : "PT", "PT" : "PR", "PR" : "R", "R" : None}
+RESULT_TO_HAND = {1 : "Royal flush", 2 : "Straight Flush", 3 : "Four of a kind", 4 : "Full House", 5 : "Flush", 6 : "Straight", 7 : "Three of a kind", 8 : "Two pair", 9 : "Pair", 10 : "High card"}
+
+
+
+class PokerState:
+    def __init__(self, bot_hand: set[str], community_cards: set[str], turn: str):
+        self.bot_hand = bot_hand
+        self.community_cards = community_cards
+        self.turn = turn
+    # Updates current poker state based on what turn it is. Returns a new object
+    def update_table(self, all_combos: set["PokerState"]) -> "PokerState":
+        if(self.turn == "PF"):
+            while True:
+                new_community_cards = set()
+                while len(new_community_cards) < 3:
+                    new_community_cards.add(random.choice(Deck.reference_deck))
+                    new_community_cards = new_community_cards.difference(self.bot_hand)
+                next_state = PokerState(self.bot_hand, new_community_cards, "PT")
+                if not next_state in all_combos:
+                    return next_state
+        elif(self.turn == "PT"):
+            while True:
+                new_community_cards = set(self.community_cards)
+                while len(new_community_cards) < 4:
+                    new_community_cards.add(random.choice(Deck.reference_deck))
+                    new_community_cards = new_community_cards.difference(self.bot_hand)
+                next_state = PokerState(self.bot_hand, new_community_cards, "PR")
+                if not next_state in all_combos:
+                    return next_state
+        elif(self.turn == "PR"):
+            while True:
+                new_community_cards = set(self.community_cards)
+                while len(new_community_cards) < 5:
+                    new_community_cards.add(random.choice(Deck.reference_deck))
+                    new_community_cards = new_community_cards.difference(self.bot_hand)
+                next_state = PokerState(self.bot_hand, new_community_cards, "R")
+                if not next_state in all_combos:
+                    return next_state
+        else:
+            # Return same state
+            return PokerState(set(self.bot_hand), set(self.community_cards), self.turn)    
+    # Hashable version of the current state to put in a set
+    def hashable_state(self) -> str:
+        hash_str = ""
+        for card in community_cards:
+            hash_str += card
+        return hash_str
+            
+
+class GameState:
+    def __init__(self, turn: str, cards: PokerState, parent: Optional["GameState"], all_combinations: set[str]):
+        self.turn = turn    # Pre-flop (PF), pre-turn (PT), pre-river (PR), river (R)
+        self.parent = parent    # Parent node
+        self.cards = cards
+        self.child_states: set["GameState"] = set()   # Contains all of the child states of this node
+        self.n = 0  # Number of times visited
+        self.t = 0  # Total value of node
+        self.all_combinations = all_combinations
+        
+
+class Deck:
+    # Immutable version of the deck for reference
+    reference_deck = ("2D", "3D", "4D", "5D", "6D", "7D", "8D", "9D", "TD", "JD", "QD", "KD", "AD",
+                      "2C", "3C", "4C", "5C", "6C", "7C", "8C", "9C", "TC", "JC", "QC", "KC", "AC",
+                      "2H", "3H", "4H", "5H", "6H", "7H", "8H", "9H", "TH", "JH", "QH", "KH", "AH",
+                      "2S", "3S", "4S", "5S", "6S", "7S", "8S", "9S", "TS", "JS", "QS", "KS", "AS")
+    def __init__(self):
+        self.deck = ["2D", "3D", "4D", "5D", "6D", "7D", "8D", "9D", "TD", "JD", "QD", "KD", "AD",
+                     "2C", "3C", "4C", "5C", "6C", "7C", "8C", "9C", "TC", "JC", "QC", "KC", "AC",
+                     "2H", "3H", "4H", "5H", "6H", "7H", "8H", "9H", "TH", "JH", "QH", "KH", "AH",
+                     "2S", "3S", "4S", "5S", "6S", "7S", "8S", "9S", "TS", "JS", "QS", "KS", "AS"]
+    # Draws cards
+    def draw(self) -> str:
+        card = random.choice(self.deck)
+        self.deck.remove(card)
+        return card
+
 
 """
 Takes in hole and community cards, and returns the hand ranking and kickers
@@ -83,6 +131,23 @@ def evaluate_hand(cards: set[str]) -> tuple[int, list[int]]:
     else:
         return sf
 
+def breakdown_result(result: tuple[int, list[int]]) -> str:      
+    rank = RESULT_TO_HAND[result[0]]
+    if result[0] == 1:
+        return rank
+    if result[0] in [2, 4, 5, 6]:
+        return rank + f" ({str(result[1])})"
+    if result[0] == 3:
+        return rank + f" ({result[1][-1]}), Kicker: {result[1][-2]}"
+    if result[0] == 7:
+        return rank + f" ({result[1][-1]}), Kickers: {result[1][-3:-1]}"
+    if result[0] == 8:
+        return rank + f" ({result[1][-2]}, {result[1][-1]}), Kicker: {result[1][-3]}"
+    if result[0] == 9:
+        return rank + f" ({result[1][-1]}), Kickers: {result[1][-4:-1]}"
+    else:
+        return rank + f" ({result[1][-1]}), Kickers: {result[1][-5:-1]}"
+    
 """
 Takes in two evaluated hands.
 Returns 1 if bot wins and 0 if bot loses
@@ -116,24 +181,57 @@ def choose_winner(p0: tuple[int, list[int]], p1: tuple[int, list[int]]) -> int:
     else:
         return p0[0] < p1[0]
     
-def generate_hand(turn: str) -> tuple[set[str], set[str], Deck]:
-    # In pre-flop, both player receives hand
-    hand = set()
-    community_cards = set()
-    deck = Deck()
+def generate_hand(bot_hand: set[str], community_cards: set[str], opp_hand: set[str]) -> tuple[set[str], set[str], set[str]]:
+    # PF
+    if(len(bot_hand) == 0):
+        hand = set()
+        cc = set()
+        o_hand = set()
 
-    for i in range(2):
-        hand.add(deck.draw())
+        while len(hand) < 2:
+            new_card = random.choice(Deck.reference_deck)
+            if(not (new_card in hand)):
+                hand.add(new_card)
+            
+        while len(o_hand) < 2:
+            new_card = random.choice(Deck.reference_deck)
+            if(not (new_card in hand or new_card in o_hand)):
+                o_hand.add(new_card)
+
+    # PT
+    elif(len(bot_hand) == 2 and len(community_cards) == 0):
+        hand = set(bot_hand)
+        cc = set()
+        o_hand = set(opp_hand)
+
+        while len(cc) < 3:
+            new_card = random.choice(Deck.reference_deck)
+            if(not (new_card in hand or new_card in o_hand or new_card in cc)):
+                cc.add(new_card)
     
-    if(turn == "PT"):
-        for i in range(3):
-            community_cards.add(deck.draw())
-
-    elif(turn == "PR"):
-        for i in range(1):
-            community_cards.add(deck.draw())
+    # PR
+    elif(len(bot_hand) == 2 and len(community_cards) == 3):
+        hand = set(bot_hand)
+        cc = set(community_cards)
+        o_hand = set(opp_hand)
         
-    return hand, community_cards, deck
+        while len(cc) < 4:
+            new_card = random.choice(Deck.reference_deck)
+            if(not (new_card in hand or new_card in o_hand or new_card in cc)):
+                cc.add(new_card)
+    
+    # R
+    elif(len(bot_hand) == 2 and len(community_cards) == 4):
+        hand = set(bot_hand)
+        cc = set(community_cards)
+        o_hand = set(opp_hand)
+
+        while len(cc) < 5:
+            new_card = random.choice(Deck.reference_deck)
+            if(not (new_card in hand or new_card in o_hand or new_card in cc)):
+                cc.add(new_card)
+
+    return hand, cc, o_hand
     
     
 def royal_flush(values: dict, suits: dict, cards: set[str]) -> Optional[tuple[int, list[int]]]:
@@ -291,23 +389,20 @@ def UCB1(node: GameState, parent_N: int) -> float:
     except(ArithmeticError):
         return float('inf')
 
-def rollout(node: GameState, hand: set[str], community_cards: set[str], deck: Deck) -> int:
-    for i in range(NUM_CHOICES[node.turn]):
-        # Randomly chooses to stay or fold through each stage
-        # 0 = stay
-        if(random.randint(0,1)):
-            return 0
-    # If reaches this point, it chose to stay until showdown
-    if(len(community_cards) < 5):
-        for card in deck.temp_draw(5  - len(community_cards)):
-            community_cards.add(card)
-    
+def rollout(node: GameState, hand: set[str], community_cards: set[str]) -> int:
     # Randomly generate opponent hand
     opp_hand = set()
-    new_cards = deck.temp_draw(2)
-    opp_hand.add(new_cards[0])
-    opp_hand.add(new_cards[1])
-
+    while(len(opp_hand) < 2):
+        new_card = random.choice(Deck.reference_deck)
+        if not (new_card in hand or new_card in community_cards):
+            opp_hand.add(new_card)
+            
+    # If reaches this point, it chose to stay until showdown
+    while(len(community_cards) < 5):
+        new_card = random.choice(Deck.reference_deck)
+        if not (new_card in hand or new_card in community_cards or new_card in opp_hand):
+            community_cards.add(new_card)
+    
     # Each player can use community cards and their hole cards
     h0 = hand.union(community_cards)
     h1 = opp_hand.union(community_cards)
@@ -315,102 +410,89 @@ def rollout(node: GameState, hand: set[str], community_cards: set[str], deck: De
     # Determine who wins the 
     return choose_winner(evaluate_hand(h0), evaluate_hand(h1))
 
-def MCTS(root: GameState, hand: set[str], start_community_cards: set[str], start_deck: Deck):
+def MCTS(root: GameState):
         start_time = time.time()
-        total_n = 0
-        total_t = 0
 
-        while time.time() - start_time < 10:
-            # Reset root node and cards for another simulation
-            root.left = None
-            root.right = None
-            root.n = 0
-            root.t = 0
-            current = root
-            community_cards = set(start_community_cards)
-            drawn_cards = []
-            flop = False
-            turn = False
-            river = False
-            while True and time.time() - start_time < 10:
-                # Checks if current is a leaf node
-                if(current.left is None and current.right is None):
-                    # If node already explored, expand
-                    if(current.n != 0):
-                        # If river state is being expanded, tree expansion has concluded
-                        if(NEXT_TURN[current.turn] is None):
-                            break
-                        # Don't expand fold states
-                        elif(current.stay):
-                            current.left = GameState(NEXT_TURN[current.turn], True, current)    # Stay 
-                            current.right = GameState(NEXT_TURN[current.turn], False, current)  # Fold
-                            current = current.left  # Arbitrarily selects exploration state
-                    
-                    # Rollout
-                    value = rollout(current, hand, set(community_cards), start_deck)
+        # For tracking
+        total_combos = {"PF": 0, "PT": 0, "PR" : 0, "R" : 0}
+        # Stores the number of unique possibilities at each stage based on which turn the start root is in
+        max_len = {"PF": math.perm(50, 3), "PT": math.perm(47, 1), "PR" : math.perm(46, 1), "R" : math.perm(45, 2), None : -1}
 
-                    # Backpropagates
-                    while not current is None:
-                        current.n += 1
-                        current.t += value
-                        current = current.parent
+        # Starts off at root node
+        current = root
 
-                    # Sets current back to root and repeats
-                    current = root
-                    
-                # Not a leaf node, use UCB1
-                else:
-                    # Chooses higher UCB1, or leftmost in case of a tie
-                    if(UCB1(current.left, current.n) >= UCB1(current.right, current.n)):
-                        current = current.left
-                    else:
-                        current = current.right
-                    if(current.turn == "PT" and not flop):
-                        flop = True
-                        for i in range(3):
-                            # Add three random cards to community cards
-                            card = start_deck.draw()
-                            drawn_cards.append(card)
-                            community_cards.add(card)
-                        
-                    elif(current.turn == "PR" and not turn):
-                        # Add one card for PR
-                        card = start_deck.draw()
-                        drawn_cards.append(card)
-                        community_cards.add(card)  
-                        turn = True
-                        
-                    elif(current.turn == "R" and not river):
-                        # Add one card for PR
-                        card = start_deck.draw()
-                        drawn_cards.append(card)
-                        community_cards.add(card)  
-                        river = True
-                        
+        while True and time.time() - start_time < 10:
+            # Checks if current is a leaf node
+            if(current.child_states is None or len(current.child_states) < max_len[current.turn]):
+                # If node already explored, expand
+                if(current.n != 0):
+                    # Doesn't expand past river
+                    if(not current.turn is None):
+                        new_child = GameState(NEXT_TURN[current.turn], current.cards.update_table(current.all_combinations), current, set())
+                        current.all_combinations.add(new_child.cards)
+                        total_combos[current.turn] += 1
+                        current.child_states.add(new_child)
+                        current = new_child  # Sets next exploration state as the newly created exploration
+                
+                # Rollout
+                value = rollout(current, current.cards.bot_hand, set(current.cards.community_cards))
 
-            total_n += root.n
-            total_t += root.t
-            start_deck.deck += drawn_cards
-            
+                # Backpropagates
+                while not current is None:
+                    current.n += 1
+                    current.t += value
+                    current = current.parent
+
+                # Sets current back to root and repeats
+                current = root
+                
+            # Not a leaf node, use UCB1
+            else:
+                # Chooses higher UCB1, or first infinity in case of tie
+                max_ucb1 = 0
+                best_child = current
+                for child in current.child_states:
+                    ucb1 = UCB1(child, current.n)
+                    if ucb1 > max_ucb1:
+                        max_ucb1 = ucb1
+                        best_child = child
+                    if max_ucb1 == float('inf'):
+                        break
+                current = best_child
 
         # Returns win probability
-        return (total_t / total_n * 100)
+        return (root.t / root.n * 100)
 
 
     
 if __name__ == "__main__":
-    for i in range(10):
-        bot_hand, community_cards, deck = generate_hand("PF")
-        init_state = GameState("PF", True, None)
-        print(f"Hand: {bot_hand} Turn: {init_state.turn} Win: {MCTS(init_state, bot_hand, community_cards, deck)}")
-    print()
-    for i in range(10):
-        bot_hand, community_cards, deck = generate_hand("PT")
-        init_state = GameState("PT", True, None)
-        print(f"Hand: {bot_hand} Turn: {init_state.turn} Win: {MCTS(init_state, bot_hand, community_cards, deck)}")
-    print()
-    for i in range(10):
-        bot_hand, community_cards, deck = generate_hand("PR")
-        init_state = GameState("PR", True, None)
-        print(f"Hand: {bot_hand} Turn: {init_state.turn} Win: {MCTS(init_state, bot_hand, community_cards, deck)}")
+
+    bot_hand, community_cards, opp_hand = generate_hand(set(), set(), set())
+    init_state = GameState("PF", PokerState(bot_hand, community_cards, "PF"), None, set())
+    print(f"Bot hand: {bot_hand}")
+    print(f"Pre-flop win chance: {MCTS(init_state)} %")
+
+    bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
+    init_state = GameState("PT", PokerState(bot_hand, community_cards, "PT"), None, set())
+    print(f"Bot hand: {bot_hand}  Community cards: {community_cards}")
+    print(f"Pre-turn win chance: {MCTS(init_state)} %")
+
+    bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
+    init_state = GameState("PR", PokerState(bot_hand, community_cards, "PR"), None, set())
+    print(f"Bot hand: {bot_hand}  Community cards: {community_cards}")
+    print(f"Pre-river win chance: {MCTS(init_state)} %")
+
+    bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
+    
+    print(f"Bot hand: {bot_hand}  Community cards: {community_cards}  Opponent hand: {opp_hand}")
+    if(choose_winner(evaluate_hand(bot_hand.union(community_cards)), evaluate_hand(opp_hand.union(community_cards)))):
+        result = "Win"
+    else:
+        result = "Loss"
+    print(f"Actual result: {result}")
+    print(f"Bot: {breakdown_result(evaluate_hand(bot_hand.union(community_cards)))}")
+    print(f"Opponent: {breakdown_result(evaluate_hand(opp_hand.union(community_cards)))}")
+
+
+
     
