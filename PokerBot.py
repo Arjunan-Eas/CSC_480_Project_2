@@ -466,32 +466,53 @@ def MCTS(root: GameState):
 
     
 if __name__ == "__main__":
+    correct_at_PF = 0
+    correct_at_PT = 0
+    correct_at_PR = 0
+    tests  = 50
+    for i in range(tests):
+        bot_hand, community_cards, opp_hand = generate_hand(set(), set(), set())
+        init_state = GameState("PF", PokerState(bot_hand, community_cards, "PF"), None, set())
+        print(f"Bot hand: {bot_hand}")
+        chance = MCTS(init_state)
+        PF_pred = (chance >= 50)
+        print(f"Pre-flop win chance: {chance} %")
 
-    bot_hand, community_cards, opp_hand = generate_hand(set(), set(), set())
-    init_state = GameState("PF", PokerState(bot_hand, community_cards, "PF"), None, set())
-    print(f"Bot hand: {bot_hand}")
-    print(f"Pre-flop win chance: {MCTS(init_state)} %")
+        bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
+        init_state = GameState("PT", PokerState(bot_hand, community_cards, "PT"), None, set())
+        print(f"Bot hand: {bot_hand}  Community cards: {community_cards}")
+        chance = MCTS(init_state)
+        PT_pred = (chance >= 50)
+        print(f"Pre-turn win chance: {chance} %")
 
-    bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
-    init_state = GameState("PT", PokerState(bot_hand, community_cards, "PT"), None, set())
-    print(f"Bot hand: {bot_hand}  Community cards: {community_cards}")
-    print(f"Pre-turn win chance: {MCTS(init_state)} %")
+        bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
+        init_state = GameState("PR", PokerState(bot_hand, community_cards, "PR"), None, set())
+        print(f"Bot hand: {bot_hand}  Community cards: {community_cards}")
+        chance = MCTS(init_state)
+        PR_pred = (chance >= 50)
+        print(f"Pre-river win chance: {chance} %")
 
-    bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
-    init_state = GameState("PR", PokerState(bot_hand, community_cards, "PR"), None, set())
-    print(f"Bot hand: {bot_hand}  Community cards: {community_cards}")
-    print(f"Pre-river win chance: {MCTS(init_state)} %")
-
-    bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
-    
-    print(f"Bot hand: {bot_hand}  Community cards: {community_cards}  Opponent hand: {opp_hand}")
-    if(choose_winner(evaluate_hand(bot_hand.union(community_cards)), evaluate_hand(opp_hand.union(community_cards)))):
-        result = "Win"
-    else:
-        result = "Loss"
-    print(f"Actual result: {result}")
-    print(f"Bot: {breakdown_result(evaluate_hand(bot_hand.union(community_cards)))}")
-    print(f"Opponent: {breakdown_result(evaluate_hand(opp_hand.union(community_cards)))}")
+        bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
+        
+        print(f"Bot hand: {bot_hand}  Community cards: {community_cards}  Opponent hand: {opp_hand}")
+        if(choose_winner(evaluate_hand(bot_hand.union(community_cards)), evaluate_hand(opp_hand.union(community_cards)))):
+            result = "Win"
+            correct_pred = 1
+        else:
+            result = "Loss"
+            correct_pred = 0
+        if(PF_pred == correct_pred):
+            correct_at_PF += 1
+        if(PT_pred == correct_pred):
+            correct_at_PT += 1
+        if(PR_pred == correct_pred):
+            correct_at_PR += 1
+        print(f"Actual result: {result}")
+        print(f"Bot: {breakdown_result(evaluate_hand(bot_hand.union(community_cards)))}")
+        print(f"Opponent: {breakdown_result(evaluate_hand(opp_hand.union(community_cards)))}")
+    print(f"Correct at PF {correct_at_PF / tests * 100} % of the time")
+    print(f"Correct at PT {correct_at_PT / tests * 100} % of the time")
+    print(f"Correct at PR {correct_at_PR / tests * 100} % of the time")
 
 
 
