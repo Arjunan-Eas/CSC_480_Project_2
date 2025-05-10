@@ -402,14 +402,7 @@ def UCB1(node: GameState, parent_N: int) -> float:
     except(ArithmeticError):
         return float('inf')
 
-def rollout(node: GameState, hand: set[str], opp_hand: set[str], community_cards: set[str]) -> int:
-    # Randomly generate opponent hand
-    # opp_hand = set()
-    # while(len(opp_hand) < 2):
-    #     new_card = random.choice(Deck.reference_deck)
-    #     if not (new_card in hand or new_card in community_cards):
-    #         opp_hand.add(new_card)
-            
+def rollout( hand: set[str], opp_hand: set[str], community_cards: set[str]) -> int:
     # If reaches this point, it chose to stay until showdown
     while(len(community_cards) < 5):
         new_card = random.choice(Deck.reference_deck)
@@ -448,7 +441,7 @@ def MCTS(root: GameState):
                         current = new_child  # Sets next exploration state as the newly created exploration
                 
                 # Rollout
-                value = rollout(current, current.cards.bot_hand, current.cards.opp_hand, set(current.cards.community_cards))
+                value = rollout(current.cards.bot_hand, current.cards.opp_hand, set(current.cards.community_cards))
 
                 # Backpropagates
                 while not current is None:
