@@ -135,7 +135,7 @@ def evaluate_hand(cards: set[str]) -> tuple[int, list[int]]:
         return rf
 
     # Checks four of a kind, three of a kind, full house, two pairs, pair, and high card
-    dup = duplicates(value_counter, suit_counter, cards)
+    dup = duplicates(value_counter)
 
     # Checks straight, flush, and straight flush    
     sf = straight_flush(value_counter, suit_counter, cards)
@@ -346,7 +346,7 @@ def straight_flush(values: dict, suits: dict, cards: set) -> Optional[tuple[int,
                 # Just a flush
                 return (5, sorted([RANK_TO_VALUE[card[0]] for card in cards if card[1] == suit]))
 
-def duplicates(values: dict, suits: dict, cards: set) -> Optional[tuple[int, list[int]]]:
+def duplicates(values: dict) -> Optional[tuple[int, list[int]]]:
     
     sorted_values = sorted(values.keys())
     
