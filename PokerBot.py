@@ -194,17 +194,22 @@ def choose_winner(p0: tuple[int, list[int]], p1: tuple[int, list[int]]) -> int:
     else:
         return p0[0] < p1[0]
     
-def generate_hand(bot_hand: set[str], community_cards: set[str], opp_hand: set[str]) -> tuple[set[str], set[str], set[str]]:
+def generate_hand(bot_hand: set[str], community_cards: set[str], opp_hand: set[str], starting_hand: Optional[set[str]] = None) -> tuple[set[str], set[str], set[str]]:
     # PF
     if(len(bot_hand) == 0):
-        hand = set()
+        if(not starting_hand is None):
+            hand = set(starting_hand)
+        else:
+            hand = set()
+            while len(hand) < 2:
+                new_card = random.choice(Deck.reference_deck)
+                if(not (new_card in hand)):
+                    hand.add(new_card)
+        
         cc = set()
         o_hand = set()
 
-        while len(hand) < 2:
-            new_card = random.choice(Deck.reference_deck)
-            if(not (new_card in hand)):
-                hand.add(new_card)
+
             
         while len(o_hand) < 2:
             new_card = random.choice(Deck.reference_deck)
@@ -473,40 +478,57 @@ def MCTS(root: GameState):
     
 if __name__ == "__main__":
 
-        bot_hand, community_cards, opp_hand = generate_hand(set(), set(), set())
-        init_state = GameState("PF", PokerState(bot_hand, set(), community_cards, "PF"), None, set())
-        print(f"Bot hand: {bot_hand}")
-        chance = MCTS(init_state)
-        print(f"Pre-flop win chance: {chance} %")
+    # Chooses a random hand or custom hand
+    # NOTE: Does not check for unique inputs, so you must enter unique cards
+    while True:
+        custom_cards = input("Would you like to use a custom hand? (Y/N)")
+        if(custom_cards.upper() == "N"):
+            bot_hand, community_cards, opp_hand = generate_hand(set(), set(), set())
+            break
+        elif(custom_cards.upper() == "Y"):
+            card1 = input("Enter card 1 in the form RankSuit ex: (TS) ").upper()
+            card2 = input("Enter card 2 in the form RankSuit ex: (3H) ").upper()
+            if(card1[0] in RANK_TO_VALUE.keys() and card2[0] in RANK_TO_VALUE.keys()):
+                if(card1[1] in SUITS and card2[1] in SUITS):
+                    hand = set()
+                    hand.add(card1)
+                    hand.add(card2)
+                    bot_hand, community_cards, opp_hand = generate_hand(set(), set(), set(), starting_hand = hand)
+                    break
+        print("Please enter a valid choice or enter the cards correctly.")
 
-        bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
-        init_state = GameState("PT", PokerState(bot_hand, set(), community_cards, "PT"), None, set())
-        print(f"Bot hand: {bot_hand}  Community cards: {community_cards}")
-        chance = MCTS(init_state)
+    init_state = GameState("PF", PokerState(bot_hand, set(), community_cards, "PF"), None, set())
+    print(f"Bot hand: {bot_hand}")
+    chance = MCTS(init_state)
+    print(f"Pre-flop win chance: {chance} %")
 
-        print(f"Pre-turn win chance: {chance} %")
+    bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
+    init_state = GameState("PT", PokerState(bot_hand, set(), community_cards, "PT"), None, set())
+    print(f"Bot hand: {bot_hand}  Community cards: {community_cards}")
+    chance = MCTS(init_state)
 
-        bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
-        init_state = GameState("PR", PokerState(bot_hand, set(), community_cards, "PR"), None, set())
-        print(f"Bot hand: {bot_hand}  Community cards: {community_cards}")
-        chance = MCTS(init_state)
+    print(f"Pre-turn win chance: {chance} %")
 
-        print(f"Pre-river win chance: {chance} %")
+    bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
+    init_state = GameState("PR", PokerState(bot_hand, set(), community_cards, "PR"), None, set())
+    print(f"Bot hand: {bot_hand}  Community cards: {community_cards}")
+    chance = MCTS(init_state)
 
-        bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
-        
-        print(f"Bot hand: {bot_hand}  Community cards: {community_cards}  Opponent hand: {opp_hand}")
-        if(choose_winner(evaluate_hand(bot_hand.union(community_cards)), evaluate_hand(opp_hand.union(community_cards)))):
-            result = "Win"
+    print(f"Pre-river win chance: {chance} %")
 
-        else:
-            result = "Loss"
-
-        print(f"Actual result: {result}")
-        print(f"Bot: {breakdown_result(evaluate_hand(bot_hand.union(community_cards)))}")
-        print(f"Opponent: {breakdown_result(evaluate_hand(opp_hand.union(community_cards)))}")
-
-
-
-
+    bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
     
+    print(f"Bot hand: {bot_hand}  Community cards: {community_cards}  Opponent hand: {opp_hand}")
+    if(choose_winner(evaluate_hand(bot_hand.union(community_cards)), evaluate_hand(opp_hand.union(community_cards)))):
+        result = "Win"
+
+    else:
+        result = "Loss"
+
+    print(f"Actual result: {result}")
+    print(f"Bot: {breakdown_result(evaluate_hand(bot_hand.union(community_cards)))}")
+    print(f"Opponent: {breakdown_result(evaluate_hand(opp_hand.union(community_cards)))}")
+
+
+
+
