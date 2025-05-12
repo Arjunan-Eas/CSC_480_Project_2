@@ -16,7 +16,18 @@ SUITS = ('D', 'C', 'H', 'S')
 NUM_CHOICES = {"PF" : 3, "PT" : 2, "PR" : 1, "R" : 0}
 NEXT_TURN = {"PF" : "PT", "PT" : "PR", "PR" : "R", "R" : None}
 RESULT_TO_HAND = {1 : "Royal flush", 2 : "Straight Flush", 3 : "Four of a kind", 4 : "Full House", 5 : "Flush", 6 : "Straight", 7 : "Three of a kind", 8 : "Two pair", 9 : "Pair", 10 : "High card"}
-
+# Max number of child states
+MAX_LEN_PF = {"PF": math.perm(50, 5), "PT": math.perm(45, 1), "PR" : math.perm(44, 1), "R" : 0, None : -1}
+MAX_LEN_PT = {"PT": math.perm(47, 3), "PR" : math.perm(44, 1), "R" : 0, None : -1}
+MAX_LEN_PR = {"PR" : math.perm(46, 3), "R" : 0, None : -1}
+MAX_LEN_R = {"R" : 0, None : -1}
+MAX_LEN = {"PF" : MAX_LEN_PF, "PT" : MAX_LEN_PT, "PR" : MAX_LEN_PR, "R" : MAX_LEN_R}
+LEN_CC = {"PF" : 3, "PT" : 4, "PR" : 5}
+# Immutable version of the deck for reference
+DECK = ("2D", "3D", "4D", "5D", "6D", "7D", "8D", "9D", "TD", "JD", "QD", "KD", "AD",
+                      "2C", "3C", "4C", "5C", "6C", "7C", "8C", "9C", "TC", "JC", "QC", "KC", "AC",
+                      "2H", "3H", "4H", "5H", "6H", "7H", "8H", "9H", "TH", "JH", "QH", "KH", "AH",
+                      "2S", "3S", "4S", "5S", "6S", "7S", "8S", "9S", "TS", "JS", "QS", "KS", "AS")
 
 
 class PokerState:
@@ -27,54 +38,25 @@ class PokerState:
         self.turn = turn
     # Updates current poker state based on what turn it is. Returns a new object
     def update_table(self, all_combos: set["PokerState"]) -> "PokerState":
-        if(self.turn == "PF"):
-            while True:
-                new_opp_cards = set()
-                while len(new_opp_cards) < 2:
-                    new_opp_cards.add(random.choice(Deck.reference_deck))
-                    new_opp_cards = new_opp_cards.difference(self.bot_hand)
-                new_community_cards = set()
-                while len(new_community_cards) < 3:
-                    new_community_cards.add(random.choice(Deck.reference_deck))
-                    new_community_cards = new_community_cards.difference(self.bot_hand, new_opp_cards)
-                next_state = PokerState(self.bot_hand, new_opp_cards, new_community_cards, "PT")
-                if not next_state in all_combos:
-                    return next_state
-        elif(self.turn == "PT"):
-            while True:
-                new_opp_cards = set()
-                while len(new_opp_cards) < 2:
-                    new_opp_cards.add(random.choice(Deck.reference_deck))
-                    new_opp_cards = new_opp_cards.difference(self.bot_hand)
-                new_community_cards = set()
-                while len(new_community_cards) < 4:
-                    new_community_cards.add(random.choice(Deck.reference_deck))
-                    new_community_cards = new_community_cards.difference(self.bot_hand, new_opp_cards)
-                next_state = PokerState(self.bot_hand, new_opp_cards, new_community_cards, "PR")
-                if not next_state in all_combos:
-                    return next_state
-        elif(self.turn == "PR"):
-            while True:
-                new_opp_cards = set()
-                while len(new_opp_cards) < 2:
-                    new_opp_cards.add(random.choice(Deck.reference_deck))
-                    new_opp_cards = new_opp_cards.difference(self.bot_hand)
-                new_community_cards = set()
-                while len(new_community_cards) < 5:
-                    new_community_cards.add(random.choice(Deck.reference_deck))
-                    new_community_cards = new_community_cards.difference(self.bot_hand, new_opp_cards)
-                next_state = PokerState(self.bot_hand, new_opp_cards, new_community_cards, "R")
-                if not next_state in all_combos:
-                    return next_state
-        else:
-            # Return same state
-            return PokerState(set(self.bot_hand), set(self.opp_hand), set(self.community_cards), self.turn)    
+        while True:
+            new_opp_cards = set(self.opp_hand)
+            while len(new_opp_cards) < 2:
+                card = random.choice(DECK)
+                if not (card in self.bot_hand or card in self.community_cards):
+                    new_opp_cards.add(card)
+            new_community_cards = set(self.community_cards)
+            while len(new_community_cards) < LEN_CC[self.turn]: 
+                card = random.choice(DECK)
+                if not (card in self.bot_hand or card in new_opp_cards):
+                    new_community_cards.add(card)
+            next_state = PokerState(self.bot_hand, new_opp_cards, new_community_cards, NEXT_TURN[self.turn])
+            if not next_state in all_combos:
+                return next_state
+        
     # Hashable version of the current state to put in a set
     def hashable_state(self) -> str:
-        hash_str = ""
-        for card in community_cards:
-            hash_str += card
-        return hash_str
+        return "".join(sorted(self.bot_hand)) + "".join(sorted(self.community_cards)) + "".join(sorted(self.opp_hand))
+
             
 
 class GameState:
@@ -87,24 +69,6 @@ class GameState:
         self.t = 0  # Total value of node
         self.all_combinations = all_combinations
         
-
-class Deck:
-    # Immutable version of the deck for reference
-    reference_deck = ("2D", "3D", "4D", "5D", "6D", "7D", "8D", "9D", "TD", "JD", "QD", "KD", "AD",
-                      "2C", "3C", "4C", "5C", "6C", "7C", "8C", "9C", "TC", "JC", "QC", "KC", "AC",
-                      "2H", "3H", "4H", "5H", "6H", "7H", "8H", "9H", "TH", "JH", "QH", "KH", "AH",
-                      "2S", "3S", "4S", "5S", "6S", "7S", "8S", "9S", "TS", "JS", "QS", "KS", "AS")
-    def __init__(self):
-        self.deck = ["2D", "3D", "4D", "5D", "6D", "7D", "8D", "9D", "TD", "JD", "QD", "KD", "AD",
-                     "2C", "3C", "4C", "5C", "6C", "7C", "8C", "9C", "TC", "JC", "QC", "KC", "AC",
-                     "2H", "3H", "4H", "5H", "6H", "7H", "8H", "9H", "TH", "JH", "QH", "KH", "AH",
-                     "2S", "3S", "4S", "5S", "6S", "7S", "8S", "9S", "TS", "JS", "QS", "KS", "AS"]
-    # Draws cards
-    def draw(self) -> str:
-        card = random.choice(self.deck)
-        self.deck.remove(card)
-        return card
-
 
 """
 Takes in hole and community cards, and returns the hand ranking and kickers
@@ -202,17 +166,15 @@ def generate_hand(bot_hand: set[str], community_cards: set[str], opp_hand: set[s
         else:
             hand = set()
             while len(hand) < 2:
-                new_card = random.choice(Deck.reference_deck)
+                new_card = random.choice(DECK)
                 if(not (new_card in hand)):
                     hand.add(new_card)
         
         cc = set()
         o_hand = set()
-
-
-            
+    
         while len(o_hand) < 2:
-            new_card = random.choice(Deck.reference_deck)
+            new_card = random.choice(DECK)
             if(not (new_card in hand or new_card in o_hand)):
                 o_hand.add(new_card)
 
@@ -223,7 +185,7 @@ def generate_hand(bot_hand: set[str], community_cards: set[str], opp_hand: set[s
         o_hand = set(opp_hand)
 
         while len(cc) < 3:
-            new_card = random.choice(Deck.reference_deck)
+            new_card = random.choice(DECK)
             if(not (new_card in hand or new_card in o_hand or new_card in cc)):
                 cc.add(new_card)
     
@@ -234,7 +196,7 @@ def generate_hand(bot_hand: set[str], community_cards: set[str], opp_hand: set[s
         o_hand = set(opp_hand)
         
         while len(cc) < 4:
-            new_card = random.choice(Deck.reference_deck)
+            new_card = random.choice(DECK)
             if(not (new_card in hand or new_card in o_hand or new_card in cc)):
                 cc.add(new_card)
     
@@ -245,7 +207,7 @@ def generate_hand(bot_hand: set[str], community_cards: set[str], opp_hand: set[s
         o_hand = set(opp_hand)
 
         while len(cc) < 5:
-            new_card = random.choice(Deck.reference_deck)
+            new_card = random.choice(DECK)
             if(not (new_card in hand or new_card in o_hand or new_card in cc)):
                 cc.add(new_card)
 
@@ -410,7 +372,7 @@ def UCB1(node: GameState, parent_N: int) -> float:
 def rollout( hand: set[str], opp_hand: set[str], community_cards: set[str]) -> int:
     # If reaches this point, it chose to stay until showdown
     while(len(community_cards) < 5):
-        new_card = random.choice(Deck.reference_deck)
+        new_card = random.choice(DECK)
         if not (new_card in hand or new_card in community_cards or new_card in opp_hand):
             community_cards.add(new_card)
     
@@ -425,20 +387,19 @@ def MCTS(root: GameState):
         start_time = time.time()
 
         # For tracking
-        total_combos = {"PF": 0, "PT": 0, "PR" : 0, "R" : 0}
+        total_combos = {"PF": 0, "PT": 0, "PR" : 0}
         # Stores the number of unique possibilities at each stage based on which turn the start root is in
-        max_len = {"PF": math.perm(50, 5), "PT": math.perm(45, 1), "PR" : math.perm(44, 1), "R" : 1, None : -1}
+        max_len = MAX_LEN[root.turn]
 
         # Starts off at root node
         current = root
-
         while True and time.time() - start_time < 10:
-            # Checks if current is a leaf node
+            # Checks if current is a leaf node or still needs expanding
             if(current.child_states is None or len(current.child_states) < max_len[current.turn]):
                 # If node already explored, expand
                 if(current.n != 0):
                     # Doesn't expand past river
-                    if(not current.turn is None):
+                    if(not current.turn == "R"):
                         new_child = GameState(NEXT_TURN[current.turn], current.cards.update_table(current.all_combinations), current, set())
                         current.all_combinations.add(new_child.cards)
                         total_combos[current.turn] += 1
@@ -481,7 +442,7 @@ if __name__ == "__main__":
     # Chooses a random hand or custom hand
     # NOTE: Does not check for unique inputs, so you must enter unique cards
     while True:
-        custom_cards = input("Would you like to use a custom hand? (Y/N)")
+        custom_cards = input("Would you like to use a custom hand? (Y/N) ")
         if(custom_cards.upper() == "N"):
             bot_hand, community_cards, opp_hand = generate_hand(set(), set(), set())
             break
@@ -506,14 +467,12 @@ if __name__ == "__main__":
     init_state = GameState("PT", PokerState(bot_hand, set(), community_cards, "PT"), None, set())
     print(f"Bot hand: {bot_hand}  Community cards: {community_cards}")
     chance = MCTS(init_state)
-
     print(f"Pre-turn win chance: {chance} %")
 
     bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
     init_state = GameState("PR", PokerState(bot_hand, set(), community_cards, "PR"), None, set())
     print(f"Bot hand: {bot_hand}  Community cards: {community_cards}")
     chance = MCTS(init_state)
-
     print(f"Pre-river win chance: {chance} %")
 
     bot_hand, community_cards, opp_hand = generate_hand(bot_hand, community_cards, opp_hand)
@@ -521,14 +480,11 @@ if __name__ == "__main__":
     print(f"Bot hand: {bot_hand}  Community cards: {community_cards}  Opponent hand: {opp_hand}")
     if(choose_winner(evaluate_hand(bot_hand.union(community_cards)), evaluate_hand(opp_hand.union(community_cards)))):
         result = "Win"
-
     else:
         result = "Loss"
 
     print(f"Actual result: {result}")
     print(f"Bot: {breakdown_result(evaluate_hand(bot_hand.union(community_cards)))}")
     print(f"Opponent: {breakdown_result(evaluate_hand(opp_hand.union(community_cards)))}")
-
-
 
 
